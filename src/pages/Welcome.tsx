@@ -1,33 +1,63 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coffee, Calendar, MessageSquare, MapPin, Phone, Mail, X } from 'lucide-react';
+import { Coffee, Calendar, MessageSquare, MapPin, Phone, Mail, X, CheckCircle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { translations, Language } from '../i18n/translations';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { FlagKU, FlagAR, FlagEN } from '../components/Flags';
 
 export default function Welcome() {
   const navigate = useNavigate();
-  const { lang, setLang, settings } = useStore();
+  const [searchParams] = useSearchParams();
+  const { lang, setLang, settings, setSettings, tableNum, setTableNum } = useStore();
   const t = translations[lang];
   const isRTL = lang === 'ar' || lang === 'ku';
+
+  useEffect(() => {
+    const table = searchParams.get('table');
+    if (table) {
+      setTableNum(table);
+    }
+  }, [searchParams, setTableNum]);
 
   const [activeModal, setActiveModal] = useState<'reservation' | 'feedback' | 'contact' | null>(null);
   const [resData, setResData] = useState({ name: '', phone: '', date: '', time: '', guests: '2' });
   const [feedData, setFeedData] = useState({ name: '', email: '', rating: '5', message: '' });
+  const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
+
+  const showToast = (message: string, type: 'success'|'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const settingsSnapshot = await getDocs(collection(db, 'settings'));
+        if (!settingsSnapshot.empty) {
+          setSettings(settingsSnapshot.docs[0].data() as any);
+        }
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+      }
+    };
+    if (!settings.name.en) {
+      fetchSettings();
+    }
+  }, [setSettings, settings.name.en]);
 
   const handleReservation = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await addDoc(collection(db, 'reservations'), { ...resData, createdAt: new Date() });
-      alert(t.success);
+      showToast(t.success);
       setResData({ name: '', phone: '', date: '', time: '', guests: '2' });
       setActiveModal(null);
     } catch (error) {
       console.error(error);
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
@@ -35,12 +65,12 @@ export default function Welcome() {
     e.preventDefault();
     try {
       await addDoc(collection(db, 'feedback'), { ...feedData, createdAt: new Date() });
-      alert(t.success);
-      setFeedData({ name: '', rating: '5', message: '' });
+      showToast(t.success);
+      setFeedData({ name: '', email: '', rating: '5', message: '' });
       setActiveModal(null);
     } catch (error) {
       console.error(error);
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
@@ -53,6 +83,7 @@ export default function Welcome() {
           alt="Cafe Background" 
           className="w-full h-full object-cover opacity-50"
           referrerPolicy="no-referrer"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-stone-900/80 via-stone-900/40 to-stone-900/90"></div>
       </div>
@@ -67,11 +98,11 @@ export default function Welcome() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="flex flex-col items-center mb-10"
         >
-          <div className="p-4 bg-amber-500/10 rounded-full backdrop-blur-sm border border-amber-500/20 mb-6">
+          <div className="p-4 rounded-full backdrop-blur-sm border mb-6" style={{ backgroundColor: `${settings.themeColor || '#f59e0b'}1a`, borderColor: `${settings.themeColor || '#f59e0b'}33` }}>
             {settings.logo ? (
               <img src={settings.logo} alt="Logo" className="w-16 h-16 rounded-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <Coffee size={48} className="text-amber-500" />
+              <Coffee size={48} style={{ color: settings.themeColor || '#f59e0b' }} />
             )}
           </div>
           <h1 className="text-6xl md:text-8xl font-serif font-bold tracking-tight text-white drop-shadow-2xl">
@@ -92,24 +123,27 @@ export default function Welcome() {
           <button
             onClick={() => setLang('ku')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-              lang === 'ku' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : 'text-white/70 hover:text-white hover:bg-white/10'
+              lang === 'ku' ? 'text-white shadow-lg' : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
+            style={lang === 'ku' ? { backgroundColor: settings.themeColor || '#f59e0b', boxShadow: `0 10px 15px -3px ${settings.themeColor || '#f59e0b'}4d, 0 4px 6px -4px ${settings.themeColor || '#f59e0b'}4d` } : {}}
           >
             <FlagKU /> کوردی
           </button>
           <button
             onClick={() => setLang('ar')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-              lang === 'ar' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : 'text-white/70 hover:text-white hover:bg-white/10'
+              lang === 'ar' ? 'text-white shadow-lg' : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
+            style={lang === 'ar' ? { backgroundColor: settings.themeColor || '#f59e0b', boxShadow: `0 10px 15px -3px ${settings.themeColor || '#f59e0b'}4d, 0 4px 6px -4px ${settings.themeColor || '#f59e0b'}4d` } : {}}
           >
             <FlagAR /> عربي
           </button>
           <button
             onClick={() => setLang('en')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-              lang === 'en' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : 'text-white/70 hover:text-white hover:bg-white/10'
+              lang === 'en' ? 'text-white shadow-lg' : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
+            style={lang === 'en' ? { backgroundColor: settings.themeColor || '#f59e0b', boxShadow: `0 10px 15px -3px ${settings.themeColor || '#f59e0b'}4d, 0 4px 6px -4px ${settings.themeColor || '#f59e0b'}4d` } : {}}
           >
             <FlagEN /> English
           </button>
@@ -120,8 +154,9 @@ export default function Welcome() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.5 }}
-          onClick={() => navigate('/menu')}
-          className="px-12 py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-full font-bold text-xl shadow-[0_0_40px_rgba(245,158,11,0.3)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_60px_rgba(245,158,11,0.5)] mb-8"
+          onClick={() => navigate(tableNum ? `/menu?table=${tableNum}` : '/menu')}
+          className="px-12 py-5 text-white rounded-full font-bold text-xl transition-all duration-300 hover:scale-105 mb-8"
+          style={{ backgroundColor: settings.themeColor || '#f59e0b', boxShadow: `0 0 40px ${settings.themeColor || '#f59e0b'}4d` }}
         >
           {t.viewMenu}
         </motion.button>
@@ -137,19 +172,19 @@ export default function Welcome() {
             onClick={() => setActiveModal('reservation')} 
             className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/15 backdrop-blur-md border border-white/10 text-stone-200 hover:text-white rounded-full font-medium transition-all duration-300"
           >
-            <Calendar size={18} className="text-amber-500" /> {t.reservation}
+            <Calendar size={18} style={{ color: settings.themeColor || '#f59e0b' }} /> {t.reservation}
           </button>
           <button 
             onClick={() => setActiveModal('feedback')} 
             className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/15 backdrop-blur-md border border-white/10 text-stone-200 hover:text-white rounded-full font-medium transition-all duration-300"
           >
-            <MessageSquare size={18} className="text-amber-500" /> {t.feedback}
+            <MessageSquare size={18} style={{ color: settings.themeColor || '#f59e0b' }} /> {t.feedback}
           </button>
           <button 
             onClick={() => setActiveModal('contact')} 
             className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/15 backdrop-blur-md border border-white/10 text-stone-200 hover:text-white rounded-full font-medium transition-all duration-300"
           >
-            <Phone size={18} className="text-amber-500" /> {t.contact}
+            <Phone size={18} style={{ color: settings.themeColor || '#f59e0b' }} /> {t.contact}
           </button>
         </motion.div>
       </div>
@@ -173,9 +208,9 @@ export default function Welcome() {
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 border-b border-stone-100 bg-stone-50/50">
                 <h2 className="text-2xl font-serif font-bold text-stone-800 flex items-center gap-3">
-                  {activeModal === 'reservation' && <Calendar className="text-amber-500" />}
-                  {activeModal === 'feedback' && <MessageSquare className="text-amber-500" />}
-                  {activeModal === 'contact' && <Phone className="text-amber-500" />}
+                  {activeModal === 'reservation' && <Calendar style={{ color: settings.themeColor || '#f59e0b' }} />}
+                  {activeModal === 'feedback' && <MessageSquare style={{ color: settings.themeColor || '#f59e0b' }} />}
+                  {activeModal === 'contact' && <Phone style={{ color: settings.themeColor || '#f59e0b' }} />}
                   {activeModal === 'reservation' ? t.reservation : activeModal === 'feedback' ? t.feedback : t.contact}
                 </h2>
                 <button 
@@ -193,23 +228,23 @@ export default function Welcome() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div>
                         <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.name}</label>
-                        <input required type="text" value={resData.name} onChange={e => setResData({...resData, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all" />
+                        <input required type="text" value={resData.name} onChange={e => setResData({...resData, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any} />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.phone}</label>
-                        <input required type="tel" value={resData.phone} onChange={e => setResData({...resData, phone: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all" />
+                        <input required type="tel" value={resData.phone} onChange={e => setResData({...resData, phone: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any} />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.date}</label>
-                        <input required type="date" value={resData.date} onChange={e => setResData({...resData, date: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all" />
+                        <input required type="date" value={resData.date} onChange={e => setResData({...resData, date: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any} />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.time}</label>
-                        <input required type="time" value={resData.time} onChange={e => setResData({...resData, time: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all" />
+                        <input required type="time" value={resData.time} onChange={e => setResData({...resData, time: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any} />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.guests}</label>
-                        <select value={resData.guests} onChange={e => setResData({...resData, guests: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all">
+                        <select value={resData.guests} onChange={e => setResData({...resData, guests: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any}>
                           {[1,2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n}</option>)}
                         </select>
                       </div>
@@ -224,11 +259,11 @@ export default function Welcome() {
                   <form onSubmit={handleFeedback} className="space-y-5 text-start">
                     <div>
                       <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.name}</label>
-                      <input required type="text" value={feedData.name} onChange={e => setFeedData({...feedData, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all" />
+                      <input required type="text" value={feedData.name} onChange={e => setFeedData({...feedData, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.email}</label>
-                      <input type="email" value={feedData.email} onChange={e => setFeedData({...feedData, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all" />
+                      <input type="email" value={feedData.email} onChange={e => setFeedData({...feedData, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-stone-500 mb-2">{t.rating}</label>
@@ -238,7 +273,8 @@ export default function Welcome() {
                             key={star} 
                             type="button"
                             onClick={() => setFeedData({...feedData, rating: star.toString()})}
-                            className={`text-3xl transition-colors ${parseInt(feedData.rating) >= star ? 'text-amber-500' : 'text-stone-200 hover:text-amber-200'}`}
+                            className={`text-3xl transition-colors ${parseInt(feedData.rating) >= star ? '' : 'text-stone-200 hover:text-stone-300'}`}
+                            style={parseInt(feedData.rating) >= star ? { color: settings.themeColor || '#f59e0b' } : {}}
                           >
                             ★
                           </button>
@@ -247,9 +283,9 @@ export default function Welcome() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-stone-500 mb-1.5">{t.message}</label>
-                      <textarea required rows={4} value={feedData.message} onChange={e => setFeedData({...feedData, message: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none resize-none transition-all"></textarea>
+                      <textarea required rows={4} value={feedData.message} onChange={e => setFeedData({...feedData, message: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 outline-none resize-none transition-all" style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any}></textarea>
                     </div>
-                    <button type="submit" className="w-full py-4 mt-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-amber-500/20">
+                    <button type="submit" className="w-full py-4 mt-2 text-white rounded-xl font-medium transition-colors shadow-lg" style={{ backgroundColor: settings.themeColor || '#f59e0b', boxShadow: `0 10px 15px -3px ${settings.themeColor || '#f59e0b'}33` }}>
                       {t.sendFeedback}
                     </button>
                   </form>
@@ -291,6 +327,16 @@ export default function Welcome() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[70] animate-fade-in-up">
+          <div className={`px-6 py-4 rounded-2xl shadow-xl flex items-center gap-3 text-white font-medium ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+            {toast.type === 'success' ? <CheckCircle size={20} /> : <X size={20} />}
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

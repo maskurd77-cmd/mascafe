@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Search, Coffee, ChevronDown, Star, LayoutGrid, List, ShoppingCart, Plus, Minus, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Search, Coffee, ChevronDown, Star, LayoutGrid, List, ShoppingCart, Plus, Minus, X, Trash2, CheckCircle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { translations, Language } from '../i18n/translations';
 import { collection, getDocs, addDoc } from 'firebase/firestore';
@@ -11,11 +11,17 @@ import { FlagKU, FlagAR, FlagEN } from '../components/Flags';
 export default function Menu() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tableNum = searchParams.get('table');
   
-  const { lang, setLang, categories, setCategories, menuItems, setMenuItems, banners, setBanners, settings, setSettings, lastFetch, setLastFetch, cart, addToCart, removeFromCart, updateQuantity, clearCart } = useStore();
+  const { lang, setLang, categories, setCategories, menuItems, setMenuItems, banners, setBanners, settings, setSettings, lastFetch, setLastFetch, cart, addToCart, removeFromCart, updateQuantity, clearCart, tableNum, setTableNum } = useStore();
   const t = translations[lang];
   const isRTL = lang === 'ar' || lang === 'ku';
+
+  useEffect(() => {
+    const table = searchParams.get('table');
+    if (table) {
+      setTableNum(table);
+    }
+  }, [searchParams, setTableNum]);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,6 +29,13 @@ export default function Menu() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
+
+  const showToast = (message: string, type: 'success'|'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,16 +57,17 @@ export default function Menu() {
 
       setLoading(true);
       try {
-        const catSnapshot = await getDocs(collection(db, 'categories'));
-        const cats = catSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-        
-        const itemsSnapshot = await getDocs(collection(db, 'items'));
-        const items = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        const [catSnapshot, itemsSnapshot, bannersSnapshot, settingsSnapshot] = await Promise.all([
+          getDocs(collection(db, 'categories')),
+          getDocs(collection(db, 'items')),
+          getDocs(collection(db, 'banners')),
+          getDocs(collection(db, 'settings'))
+        ]);
 
-        const bannersSnapshot = await getDocs(collection(db, 'banners'));
+        const cats = catSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        const items = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
         const fetchedBanners = bannersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
-        const settingsSnapshot = await getDocs(collection(db, 'settings'));
         if (!settingsSnapshot.empty) {
           setSettings(settingsSnapshot.docs[0].data() as any);
         }
@@ -98,43 +112,47 @@ export default function Menu() {
         status: 'pending',
         createdAt: new Date().toISOString()
       });
-      alert(t.orderPlaced);
+      showToast(t.orderPlaced);
       clearCart();
       setIsCartOpen(false);
     } catch (error) {
       console.error(error);
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
   return (
     <div className={`min-h-screen bg-stone-50 text-stone-800 ${isRTL ? 'rtl' : 'ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-stone-200/50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-          <button 
-            onClick={() => navigate('/')}
-            className="p-2.5 hover:bg-stone-100 rounded-full transition-colors text-stone-600"
-          >
-            {isRTL ? <ArrowRight size={24} /> : <ArrowLeft size={24} />}
-          </button>
-          
-          <h1 className="text-2xl font-serif font-bold text-amber-600 flex items-center gap-2">
-            {settings.logo ? (
-              <img src={settings.logo} alt="Logo" className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <Coffee size={24} /> 
-            )}
-            {settings.name[lang] || 'MasCafe'}
-          </h1>
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-stone-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => navigate(tableNum ? `/?table=${tableNum}` : '/')}
+              className="p-2 -ml-2 hover:bg-stone-100 rounded-full transition-colors text-stone-600"
+            >
+              {isRTL ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
+            </button>
+            
+            <h1 className="text-lg font-serif font-bold text-stone-800 flex items-center gap-2 tracking-tight">
+              {settings.logo ? (
+                <img src={settings.logo} alt="Logo" className="w-8 h-8 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: settings.themeColor || '#f59e0b' }}>
+                  <Coffee size={16} />
+                </div>
+              )}
+              {settings.name[lang] || 'MasCafe'}
+            </h1>
+          </div>
 
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-2 bg-stone-100 hover:bg-stone-200 px-4 py-2 rounded-full transition-colors font-medium text-sm"
+              className="flex items-center gap-1.5 bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-full transition-colors font-medium text-xs"
             >
-              {lang === 'ku' ? <><FlagKU /> کوردی</> : lang === 'ar' ? <><FlagAR /> عربي</> : <><FlagEN /> English</>}
-              <ChevronDown size={16} className={`transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`} />
+              {lang === 'ku' ? <><FlagKU /> کوردی</> : lang === 'ar' ? <><FlagAR /> عربي</> : <><FlagEN /> EN</>}
+              <ChevronDown size={14} className={`transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             <AnimatePresence>
@@ -162,46 +180,83 @@ export default function Menu() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-6">
         {/* Search & View Toggle */}
-        <div className="flex items-center gap-4 mb-8 max-w-2xl mx-auto">
+        <div className="flex items-center gap-3 mb-6 max-w-2xl mx-auto">
           <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-stone-400">
-              <Search size={20} />
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-stone-400">
+              <Search size={18} />
             </div>
             <input
               type="text"
               placeholder={t.search}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-4 bg-white border border-stone-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-shadow"
+              className="w-full pl-10 pr-4 py-3 bg-white border border-stone-200 rounded-xl shadow-sm focus:ring-2 outline-none transition-shadow text-sm"
+              style={{ '--tw-ring-color': settings.themeColor || '#f59e0b' } as any}
             />
           </div>
-          <div className="flex items-center bg-white rounded-2xl p-1 shadow-sm border border-stone-200 shrink-0">
+          <div className="flex items-center bg-white rounded-xl p-1 shadow-sm border border-stone-200 shrink-0">
             <button 
               onClick={() => setViewMode('grid')} 
-              className={`p-3 rounded-xl transition-colors ${viewMode === 'grid' ? 'bg-amber-500 text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
+              style={viewMode === 'grid' ? { backgroundColor: settings.themeColor || '#f59e0b' } : {}}
             >
-              <LayoutGrid size={20} />
+              <LayoutGrid size={18} />
             </button>
             <button 
               onClick={() => setViewMode('list')} 
-              className={`p-3 rounded-xl transition-colors ${viewMode === 'list' ? 'bg-amber-500 text-white shadow-md' : 'text-stone-400 hover:text-stone-600'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
+              style={viewMode === 'list' ? { backgroundColor: settings.themeColor || '#f59e0b' } : {}}
             >
-              <List size={20} />
+              <List size={18} />
             </button>
+          </div>
+        </div>
+
+        {/* Categories - Sticky */}
+        <div className="sticky top-16 z-40 bg-stone-50/90 backdrop-blur-xl py-3 -mx-4 px-4 mb-6 border-b border-stone-200/50">
+          <div className="flex overflow-x-auto hide-scrollbar gap-2 max-w-7xl mx-auto">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                activeCategory === 'all' 
+                  ? 'text-white shadow-md' 
+                  : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+              }`}
+              style={activeCategory === 'all' ? { backgroundColor: settings.themeColor || '#f59e0b', borderColor: settings.themeColor || '#f59e0b' } : {}}
+            >
+              {t.all}
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  activeCategory === cat.id 
+                    ? 'text-white shadow-md' 
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+                style={activeCategory === cat.id ? { backgroundColor: settings.themeColor || '#f59e0b', borderColor: settings.themeColor || '#f59e0b' } : {}}
+              >
+                {cat.image && (
+                  <img src={cat.image} alt={cat.name[lang]} className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                )}
+                {cat.name[lang]}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Promotional Banners */}
         {activeBanners.length > 0 && (
-          <div className="flex overflow-x-auto hide-scrollbar gap-6 mb-8 snap-x snap-mandatory">
+          <div className="flex overflow-x-auto hide-scrollbar gap-4 mb-8 snap-x snap-mandatory pb-2">
             {activeBanners.map(banner => (
               <a 
                 key={banner.id} 
                 href={banner.link || '#'} 
                 target={banner.link ? "_blank" : "_self"}
-                className="flex-shrink-0 w-full md:w-2/3 lg:w-1/2 h-48 md:h-64 rounded-3xl overflow-hidden snap-center relative group"
+                className="flex-shrink-0 w-full md:w-2/3 lg:w-1/2 h-40 md:h-56 rounded-2xl overflow-hidden snap-center relative group shadow-sm"
               >
                 {banner.image ? (
                   <img src={banner.image} alt="Promotion" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" referrerPolicy="no-referrer" />
@@ -216,40 +271,10 @@ export default function Menu() {
           </div>
         )}
 
-        {/* Categories */}
-        <div className="flex overflow-x-auto hide-scrollbar gap-4 mb-8 pb-4">
-          <button
-            onClick={() => setActiveCategory('all')}
-            className={`flex-shrink-0 px-6 py-3 rounded-2xl font-medium transition-all ${
-              activeCategory === 'all' 
-                ? 'bg-stone-900 text-white shadow-md' 
-                : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-            }`}
-          >
-            {t.all}
-          </button>
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`flex-shrink-0 flex items-center gap-3 px-6 py-2 rounded-2xl font-medium transition-all ${
-                activeCategory === cat.id 
-                  ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' 
-                  : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-              }`}
-            >
-              {cat.image && (
-                <img src={cat.image} alt={cat.name[lang]} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-              )}
-              {cat.name[lang]}
-            </button>
-          ))}
-        </div>
-
         {/* Menu Items Grid */}
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: settings.themeColor || '#f59e0b', borderTopColor: 'transparent' }}></div>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="text-center py-20 text-stone-500">
@@ -277,49 +302,50 @@ export default function Menu() {
                     </div>
                   )}
                   
-                  <div className={`relative overflow-hidden shrink-0 ${viewMode === 'grid' ? 'h-32 md:h-64' : 'w-32 md:w-48 h-full'}`}>
+                  <div className={`relative overflow-hidden shrink-0 ${viewMode === 'grid' ? 'h-32 md:h-48' : 'w-28 md:w-40 h-full'}`}>
                     <img 
                       src={item.image || 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800'} 
                       alt={item.name[lang]} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
                     />
                     {viewMode === 'grid' && (
-                      <div className="absolute top-2 right-2 md:top-4 md:right-4 flex flex-col gap-2 items-end">
-                        <div className="bg-white/90 backdrop-blur-sm px-2 py-1 md:px-4 md:py-2 rounded-full font-bold text-amber-600 shadow-sm text-xs md:text-base">
+                      <div className="absolute top-2 right-2 md:top-3 md:right-3 flex flex-col gap-1.5 items-end">
+                        <div className="bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full font-bold shadow-sm text-xs md:text-sm" style={{ color: settings.themeColor || '#f59e0b' }}>
                           {formatPrice(item.price)}
                         </div>
                         {item.isFeatured && (
-                          <div className="bg-amber-500 text-white p-1.5 md:p-2 rounded-full shadow-sm">
-                            <Star size={14} fill="currentColor" className="md:w-4 md:h-4" />
+                          <div className="text-white p-1.5 rounded-full shadow-sm" style={{ backgroundColor: settings.themeColor || '#f59e0b' }}>
+                            <Star size={12} fill="currentColor" className="md:w-3.5 md:h-3.5" />
                           </div>
                         )}
                       </div>
                     )}
                   </div>
                   
-                  <div className={`flex-1 flex flex-col ${viewMode === 'grid' ? 'p-3 md:p-6' : 'p-3 md:p-6 justify-center'}`}>
-                    {viewMode === 'list' ? (
-                      <div className="flex justify-between items-start mb-1 md:mb-2">
-                        <h3 className="text-base md:text-xl font-bold font-serif line-clamp-1 pr-2">{item.name[lang]}</h3>
-                        <div className="font-bold text-amber-600 whitespace-nowrap text-sm md:text-base">
-                          {formatPrice(item.price)}
+                  <div className={`flex-1 flex flex-col ${viewMode === 'grid' ? 'p-3 md:p-4' : 'p-3 md:p-4 justify-center'}`}>
+                    <div className="flex justify-between items-start mb-1 gap-2">
+                      <h3 className="font-bold text-stone-800 text-sm md:text-base leading-tight line-clamp-2">{item.name[lang]}</h3>
+                      {viewMode === 'list' && (
+                        <div className="flex flex-col items-end shrink-0 gap-1">
+                          <span className="font-bold whitespace-nowrap text-sm md:text-base" style={{ color: settings.themeColor || '#f59e0b' }}>{formatPrice(item.price)}</span>
+                          {item.isFeatured && <Star size={12} fill="currentColor" style={{ color: settings.themeColor || '#f59e0b' }} />}
                         </div>
-                      </div>
-                    ) : (
-                      <h3 className="text-sm md:text-xl font-bold mb-1 md:mb-2 font-serif line-clamp-1">{item.name[lang]}</h3>
-                    )}
+                      )}
+                    </div>
                     
-                    <p className={`text-stone-500 text-xs md:text-sm leading-relaxed line-clamp-2 ${viewMode === 'grid' ? 'mb-2 flex-1' : ''}`}>
+                    <p className={`text-stone-500 text-xs md:text-sm leading-relaxed line-clamp-2 ${viewMode === 'grid' ? 'mb-3 flex-1' : 'mb-2'}`}>
                       {item.description[lang]}
                     </p>
 
                     {item.isAvailable && (
                       <button 
                         onClick={(e) => { e.stopPropagation(); addToCart(item); }}
-                        className="mt-2 w-full py-2 bg-stone-100 hover:bg-amber-500 hover:text-white text-stone-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                        className="mt-auto w-full py-2 md:py-2.5 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-sm shadow-sm hover:shadow-md active:scale-[0.98]"
+                        style={{ backgroundColor: settings.themeColor || '#f59e0b' }}
                       >
-                        <Plus size={16} /> {t.addToCart}
+                        <ShoppingCart size={16} /> {t.addToCart}
                       </button>
                     )}
                   </div>
@@ -336,10 +362,11 @@ export default function Menu() {
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           onClick={() => setIsCartOpen(true)}
-          className={`fixed bottom-6 ${isRTL ? 'left-6' : 'right-6'} bg-amber-500 text-white p-4 rounded-full shadow-2xl hover:bg-amber-600 transition-colors z-40 flex items-center justify-center`}
+          className={`fixed bottom-6 ${isRTL ? 'left-6' : 'right-6'} text-white p-4 rounded-full shadow-2xl hover:scale-105 transition-transform z-40 flex items-center justify-center`}
+          style={{ backgroundColor: settings.themeColor || '#f59e0b' }}
         >
           <ShoppingCart size={24} />
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-white">
+          <span className="absolute -top-2 -right-2 bg-stone-900 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-white">
             {cartItemCount}
           </span>
         </motion.button>
@@ -354,25 +381,25 @@ export default function Menu() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCartOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50"
             />
             <motion.div 
               initial={{ x: isRTL ? '-100%' : '100%' }}
               animate={{ x: 0 }}
               exit={{ x: isRTL ? '-100%' : '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed top-0 bottom-0 ${isRTL ? 'left-0' : 'right-0'} w-full md:w-96 bg-white z-50 shadow-2xl flex flex-col`}
+              className={`fixed top-0 bottom-0 ${isRTL ? 'left-0' : 'right-0'} w-full md:w-[400px] bg-stone-50 z-50 shadow-2xl flex flex-col`}
             >
-              <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-stone-50">
-                <h2 className="text-2xl font-serif font-bold text-stone-800 flex items-center gap-2">
-                  <ShoppingCart className="text-amber-500" /> {t.cart}
+              <div className="p-5 border-b border-stone-200 bg-white flex items-center justify-between">
+                <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
+                  <ShoppingCart style={{ color: settings.themeColor || '#f59e0b' }} /> {t.cart}
                 </h2>
-                <button onClick={() => setIsCartOpen(false)} className="p-2 text-stone-400 hover:text-stone-800 hover:bg-stone-200 rounded-full transition-colors">
-                  <X size={24} />
+                <button onClick={() => setIsCartOpen(false)} className="p-2 text-stone-400 hover:text-stone-800 hover:bg-stone-100 rounded-full transition-colors">
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                 {cart.length === 0 ? (
                   <div className="text-center text-stone-400 py-12">
                     <ShoppingCart size={48} className="mx-auto mb-4 opacity-20" />
@@ -380,19 +407,19 @@ export default function Menu() {
                   </div>
                 ) : (
                   cart.map(item => (
-                    <div key={item.cartItemId} className="flex gap-4 items-center bg-white p-4 rounded-2xl border border-stone-100 shadow-sm">
-                      <img src={item.image} alt={item.name[lang]} className="w-16 h-16 rounded-xl object-cover" referrerPolicy="no-referrer" />
+                    <div key={item.cartItemId} className="flex gap-3 items-center bg-white p-3 rounded-2xl border border-stone-100 shadow-sm">
+                      <img src={item.image || 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800'} alt={item.name[lang]} className="w-16 h-16 rounded-xl object-cover" referrerPolicy="no-referrer" />
                       <div className="flex-1">
-                        <h4 className="font-bold text-stone-800 line-clamp-1">{item.name[lang]}</h4>
-                        <div className="text-amber-600 font-medium text-sm">{formatPrice(item.price)}</div>
-                        <div className="flex items-center gap-3 mt-2">
-                          <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 hover:bg-stone-200"><Minus size={14}/></button>
-                          <span className="font-bold w-4 text-center">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 hover:bg-stone-200"><Plus size={14}/></button>
+                        <h4 className="font-bold text-stone-800 text-sm line-clamp-1">{item.name[lang]}</h4>
+                        <div className="font-medium text-xs mt-0.5" style={{ color: settings.themeColor || '#f59e0b' }}>{formatPrice(item.price)}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => updateQuantity(item.cartItemId, -1)} className="w-7 h-7 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 hover:bg-stone-200"><Minus size={12}/></button>
+                          <span className="font-bold w-4 text-center text-sm">{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.cartItemId, 1)} className="w-7 h-7 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 hover:bg-stone-200"><Plus size={12}/></button>
                         </div>
                       </div>
                       <button onClick={() => removeFromCart(item.cartItemId)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition-colors">
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   ))
@@ -400,17 +427,21 @@ export default function Menu() {
               </div>
 
               {cart.length > 0 && (
-                <div className="p-6 border-t border-stone-100 bg-stone-50">
+                <div className="p-5 md:p-6 bg-white border-t border-stone-200 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-stone-500 font-medium">{t.total}</span>
-                    <span className="text-2xl font-bold text-stone-800">{formatPrice(cartTotal)}</span>
+                    <span className="text-xl font-bold text-stone-800">{formatPrice(cartTotal)}</span>
                   </div>
                   {tableNum && (
-                    <div className="mb-4 text-sm text-stone-500 text-center bg-white py-2 rounded-xl border border-stone-200">
+                    <div className="mb-4 text-sm text-stone-500 text-center bg-stone-50 py-2 rounded-xl border border-stone-200">
                       {t.table}: <span className="font-bold text-stone-800">{tableNum}</span>
                     </div>
                   )}
-                  <button onClick={handleCheckout} className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-colors shadow-lg shadow-amber-500/20 text-lg">
+                  <button 
+                    onClick={handleCheckout} 
+                    className="w-full py-3.5 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl active:scale-[0.98] text-base flex items-center justify-center gap-2"
+                    style={{ backgroundColor: settings.themeColor || '#f59e0b' }}
+                  >
                     {t.checkout}
                   </button>
                 </div>
@@ -419,6 +450,16 @@ export default function Menu() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[70] animate-fade-in-up">
+          <div className={`px-6 py-4 rounded-2xl shadow-xl flex items-center gap-3 text-white font-medium ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+            {toast.type === 'success' ? <CheckCircle size={20} /> : <X size={20} />}
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

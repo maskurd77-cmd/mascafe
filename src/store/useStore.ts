@@ -45,6 +45,8 @@ export interface CafeSettings {
 interface AppState {
   lang: Language;
   setLang: (lang: Language) => void;
+  tableNum: string | null;
+  setTableNum: (num: string | null) => void;
   categories: Category[];
   setCategories: (cats: Category[]) => void;
   menuItems: MenuItem[];
@@ -67,6 +69,8 @@ export const useStore = create<AppState>()(
     (set) => ({
       lang: 'ku',
       setLang: (lang) => set({ lang }),
+      tableNum: null,
+      setTableNum: (tableNum) => set({ tableNum }),
       categories: [],
       setCategories: (categories) => set({ categories }),
       menuItems: [],

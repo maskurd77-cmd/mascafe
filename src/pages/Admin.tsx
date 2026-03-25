@@ -7,7 +7,7 @@ import { useStore } from '../store/useStore';
 import { translations, Language } from '../i18n/translations';
 import { uploadImage } from '../utils/uploadImage';
 import { QRCodeSVG } from 'qrcode.react';
-import { LogOut, Plus, Edit2, Trash2, Image as ImageIcon, LayoutDashboard, Coffee, Settings, ImagePlus, Star, Inbox, Eye, X, CheckCircle, Smartphone, Calendar, MessageSquare, QrCode, Printer, ShoppingBag, Clock, Check, Download } from 'lucide-react';
+import { LogOut, Plus, Edit2, Trash2, Image as ImageIcon, LayoutDashboard, Coffee, Settings, ImagePlus, Star, Inbox, Eye, X, CheckCircle, Smartphone, Calendar, MessageSquare, QrCode, Printer, ShoppingBag, Clock, Check, Download, Link as LinkIcon } from 'lucide-react';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -53,6 +53,13 @@ export default function Admin() {
 
   // Uploading state
   const [uploading, setUploading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{type: 'item'|'category'|'banner', id: string} | null>(null);
+  const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
+
+  const showToast = (message: string, type: 'success'|'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -158,7 +165,7 @@ export default function Admin() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
@@ -173,7 +180,7 @@ export default function Admin() {
       const url = await uploadImage(e.target.files[0]);
       setter(url);
     } catch (error) {
-      alert("Upload failed");
+      showToast("Upload failed", 'error');
     } finally {
       setUploading(false);
     }
@@ -189,19 +196,23 @@ export default function Admin() {
       }
       setIsCatModalOpen(false);
       fetchData();
+      showToast(t.success);
     } catch (error) {
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
   const deleteCategory = async (id: string) => {
-    if (confirm('Are you sure?')) {
-      try {
-        await deleteDoc(doc(db, 'categories', id));
-        fetchData();
-      } catch (error) {
-        alert(t.error);
-      }
+    setDeleteConfirm({ type: 'category', id });
+  };
+
+  const confirmDeleteCategory = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'categories', id));
+      fetchData();
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -214,19 +225,23 @@ export default function Admin() {
       }
       setIsItemModalOpen(false);
       fetchData();
+      showToast(t.success);
     } catch (error) {
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
   const deleteItem = async (id: string) => {
-    if (confirm('Are you sure?')) {
-      try {
-        await deleteDoc(doc(db, 'items', id));
-        fetchData();
-      } catch (error) {
-        alert(t.error);
-      }
+    setDeleteConfirm({ type: 'item', id });
+  };
+
+  const confirmDeleteItem = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'items', id));
+      fetchData();
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -239,29 +254,33 @@ export default function Admin() {
       }
       setIsBannerModalOpen(false);
       fetchData();
+      showToast(t.success);
     } catch (error) {
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
   const deleteBanner = async (id: string) => {
-    if (confirm('Are you sure?')) {
-      try {
-        await deleteDoc(doc(db, 'banners', id));
-        fetchData();
-      } catch (error) {
-        alert(t.error);
-      }
+    setDeleteConfirm({ type: 'banner', id });
+  };
+
+  const confirmDeleteBanner = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'banners', id));
+      fetchData();
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error(error);
     }
   };
 
   const saveSettings = async () => {
     try {
       await setDoc(doc(db, 'settings', 'main'), settingsForm);
-      alert(t.success);
+      showToast(t.success);
       fetchData();
     } catch (error) {
-      alert(t.error);
+      showToast(t.error, 'error');
     }
   };
 
@@ -618,18 +637,26 @@ export default function Admin() {
             <h1 className="text-3xl font-serif font-bold text-stone-800 mb-8">{t.settings}</h1>
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100 space-y-6">
               
-              <div className="flex items-center gap-6 mb-8">
-                <div className="relative">
-                  {settingsForm.logo ? <img src={settingsForm.logo} className="w-24 h-24 rounded-full object-cover border-4 border-stone-50" referrerPolicy="no-referrer" /> : <div className="w-24 h-24 rounded-full bg-stone-100 flex items-center justify-center text-stone-400"><Coffee size={32} /></div>}
-                  <label className="absolute bottom-0 right-0 p-2 bg-amber-500 text-white rounded-full cursor-pointer shadow-lg hover:bg-amber-600 transition-colors">
-                    <ImagePlus size={16} />
-                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (url) => setSettingsForm({...settingsForm, logo: url}))} />
-                  </label>
+              <div className="flex flex-col gap-4 mb-8">
+                <div className="flex items-center gap-6">
+                  {settingsForm.logo ? <img src={settingsForm.logo} className="w-24 h-24 rounded-full object-cover border-4 border-stone-50 shadow-sm" referrerPolicy="no-referrer" /> : <div className="w-24 h-24 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 shadow-inner"><Coffee size={32} /></div>}
+                  <div>
+                    <h3 className="font-bold text-stone-800 text-lg">{t.cafeLogo}</h3>
+                    <p className="text-sm text-stone-500 mb-2">Paste an image URL for your logo.</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-stone-800 text-lg">{t.cafeLogo}</h3>
-                  <p className="text-sm text-stone-500">Upload a square image for best results.</p>
-                  {uploading && <span className="text-xs text-amber-500 font-bold animate-pulse">Uploading...</span>}
+                <div className="relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <ImagePlus size={18} className="text-stone-400" />
+                  </div>
+                  <input 
+                    type="url" 
+                    placeholder="https://example.com/logo.png" 
+                    value={settingsForm.logo} 
+                    onChange={e => setSettingsForm({...settingsForm, logo: e.target.value})} 
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-amber-500 outline-none transition-all bg-stone-50 focus:bg-white" 
+                    dir="ltr"
+                  />
                 </div>
               </div>
 
@@ -644,6 +671,25 @@ export default function Admin() {
               <div>
                 <label className="block text-sm font-medium text-stone-600 mb-1">{t.cafeName} (Kurdish)</label>
                 <input type="text" value={settingsForm.name.ku} onChange={e => setSettingsForm({...settingsForm, name: {...settingsForm.name, ku: e.target.value}})} className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-amber-500 outline-none" dir="rtl" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-stone-600 mb-1">Theme Color</label>
+                <div className="flex items-center gap-4">
+                  <input 
+                    type="color" 
+                    value={settingsForm.themeColor || '#f59e0b'} 
+                    onChange={e => setSettingsForm({...settingsForm, themeColor: e.target.value})} 
+                    className="w-14 h-14 p-1 rounded-xl border border-stone-200 cursor-pointer bg-white" 
+                  />
+                  <input 
+                    type="text" 
+                    value={settingsForm.themeColor || '#f59e0b'} 
+                    onChange={e => setSettingsForm({...settingsForm, themeColor: e.target.value})} 
+                    className="flex-1 px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-amber-500 outline-none font-mono text-stone-600" 
+                    placeholder="#f59e0b"
+                  />
+                </div>
               </div>
 
               <button onClick={saveSettings} className="w-full py-4 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-medium transition-colors shadow-lg">
@@ -682,7 +728,18 @@ export default function Admin() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 print:grid-cols-3 print:gap-8 print:w-full">
               {Array.from({ length: settings.tableCount || 15 }).map((_, i) => {
                 const tableNum = i + 1;
-                const url = `${settings.baseUrl || 'https://melt.masmenu.workers.dev/'}?table=${tableNum}`;
+                let url = '';
+                try {
+                  const base = new URL(settings.baseUrl || window.location.origin);
+                  base.pathname = base.pathname.endsWith('/') ? `${base.pathname}menu` : `${base.pathname}/menu`;
+                  base.searchParams.set('table', tableNum.toString());
+                  url = base.toString();
+                } catch (e) {
+                  const baseStr = settings.baseUrl || window.location.origin;
+                  const separator = baseStr.endsWith('/') ? '' : '/';
+                  url = `${baseStr}${separator}menu?table=${tableNum}`;
+                }
+                
                 return (
                   <div key={tableNum} className="bg-white p-8 rounded-[2rem] shadow-sm border-2 border-amber-500 flex flex-col items-center text-center print:shadow-none print:break-inside-avoid relative overflow-hidden">
                     <div className="absolute top-0 left-0 right-0 h-16 bg-amber-500 flex items-center justify-center">
@@ -739,15 +796,28 @@ export default function Admin() {
               
               <div className="space-y-5">
                 {/* Image Upload */}
-                <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                  <div className="w-20 h-20 rounded-xl bg-stone-200 overflow-hidden shrink-0">
-                    {itemForm.image ? <img src={itemForm.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-full h-full p-6 text-stone-400" />}
+                <div className="flex flex-col gap-4 p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-xl bg-stone-200 overflow-hidden shrink-0 shadow-inner">
+                      {itemForm.image ? <img src={itemForm.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-full h-full p-6 text-stone-400" />}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-stone-800 text-sm mb-1">Item Image</h3>
+                      <p className="text-xs text-stone-500">Paste an image URL for this item.</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <label className="flex items-center justify-center gap-2 w-full py-2 bg-white border border-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer hover:bg-stone-50 transition-colors">
-                      <ImagePlus size={18} /> {uploading ? 'Uploading...' : t.uploadImage}
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (url) => setItemForm({...itemForm, image: url}))} disabled={uploading} />
-                    </label>
+                  <div className="relative w-full">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <LinkIcon size={16} className="text-stone-400" />
+                    </div>
+                    <input 
+                      type="url" 
+                      placeholder="https://example.com/image.jpg" 
+                      value={itemForm.image} 
+                      onChange={e => setItemForm({...itemForm, image: e.target.value})} 
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 focus:ring-2 focus:ring-amber-500 outline-none transition-all bg-white text-sm" 
+                      dir="ltr"
+                    />
                   </div>
                 </div>
 
@@ -827,15 +897,28 @@ export default function Admin() {
               <button onClick={() => setIsCatModalOpen(false)} className="p-2 text-stone-400 hover:text-stone-800 bg-stone-100 rounded-full"><X size={20}/></button>
             </div>
             <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                <div className="w-16 h-16 rounded-xl bg-stone-200 overflow-hidden shrink-0">
-                  {catForm.image ? <img src={catForm.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-full h-full p-4 text-stone-400" />}
+              <div className="flex flex-col gap-4 p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl bg-stone-200 overflow-hidden shrink-0 shadow-inner">
+                    {catForm.image ? <img src={catForm.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <ImageIcon className="w-full h-full p-4 text-stone-400" />}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-stone-800 text-sm mb-1">Category Image</h3>
+                    <p className="text-xs text-stone-500">Paste an image URL.</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label className="flex items-center justify-center gap-2 w-full py-2 bg-white border border-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer hover:bg-stone-50 transition-colors text-sm">
-                    <ImagePlus size={16} /> {uploading ? '...' : t.uploadImage}
-                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (url) => setCatForm({...catForm, image: url}))} disabled={uploading} />
-                  </label>
+                <div className="relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <LinkIcon size={16} className="text-stone-400" />
+                  </div>
+                  <input 
+                    type="url" 
+                    placeholder="https://example.com/image.jpg" 
+                    value={catForm.image} 
+                    onChange={e => setCatForm({...catForm, image: e.target.value})} 
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 focus:ring-2 focus:ring-amber-500 outline-none transition-all bg-white text-sm" 
+                    dir="ltr"
+                  />
                 </div>
               </div>
               <div><label className="block text-sm font-medium text-stone-600 mb-1">Name (EN)</label><input type="text" value={catForm.name.en} onChange={e => setCatForm({...catForm, name: {...catForm.name, en: e.target.value}})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none" /></div>
@@ -856,12 +939,22 @@ export default function Admin() {
               <button onClick={() => setIsBannerModalOpen(false)} className="p-2 text-stone-400 hover:text-stone-800 bg-stone-100 rounded-full"><X size={20}/></button>
             </div>
             <div className="space-y-4">
-              <div className="w-full h-40 bg-stone-100 rounded-2xl overflow-hidden relative border border-stone-200 mb-4">
+              <div className="w-full h-40 bg-stone-100 rounded-2xl overflow-hidden relative border border-stone-200 mb-4 shadow-inner">
                 {bannerForm.image ? <img src={bannerForm.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <div className="w-full h-full flex flex-col items-center justify-center text-stone-400"><ImageIcon size={32} className="mb-2"/><span className="text-sm">16:9 aspect ratio recommended</span></div>}
-                <label className="absolute bottom-2 right-2 p-2 bg-white text-stone-800 rounded-full cursor-pointer shadow-lg hover:bg-stone-50 transition-colors">
-                  <ImagePlus size={18} />
-                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, (url) => setBannerForm({...bannerForm, image: url}))} disabled={uploading} />
-                </label>
+              </div>
+              
+              <div className="relative w-full mb-4">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <LinkIcon size={18} className="text-stone-400" />
+                </div>
+                <input 
+                  type="url" 
+                  placeholder="Image URL (https://...)" 
+                  value={bannerForm.image} 
+                  onChange={e => setBannerForm({...bannerForm, image: e.target.value})} 
+                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-amber-500 outline-none transition-all bg-stone-50 focus:bg-white" 
+                  dir="ltr"
+                />
               </div>
               
               <div><label className="block text-sm font-medium text-stone-600 mb-1">{t.link}</label><input type="text" value={bannerForm.link} onChange={e => setBannerForm({...bannerForm, link: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none" placeholder="https://" /></div>
@@ -873,6 +966,47 @@ export default function Admin() {
 
               <button onClick={saveBanner} className="w-full py-4 mt-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-colors shadow-lg">{t.save}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl text-center">
+            <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={32} />
+            </div>
+            <h2 className="text-2xl font-bold text-stone-800 mb-2">Are you sure?</h2>
+            <p className="text-stone-500 mb-8">This action cannot be undone. This will permanently delete the {deleteConfirm.type}.</p>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setDeleteConfirm(null)} 
+                className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (deleteConfirm.type === 'item') confirmDeleteItem(deleteConfirm.id);
+                  if (deleteConfirm.type === 'category') confirmDeleteCategory(deleteConfirm.id);
+                  if (deleteConfirm.type === 'banner') confirmDeleteBanner(deleteConfirm.id);
+                }} 
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors shadow-lg shadow-red-500/30"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[70] animate-fade-in-up">
+          <div className={`px-6 py-4 rounded-2xl shadow-xl flex items-center gap-3 text-white font-medium ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+            {toast.type === 'success' ? <CheckCircle size={20} /> : <X size={20} />}
+            {toast.message}
           </div>
         </div>
       )}
