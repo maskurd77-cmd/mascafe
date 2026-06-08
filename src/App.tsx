@@ -1,3 +1,14 @@
+import SubscriptionLock from "./components/SubscriptionLock";
+
+function App() {
+  return (
+    <div>
+      <SubscriptionLock /> {/* ئەمە لە سەرەوەی هەموو لۆجیکەکان بێت */}
+      <YourMainApp />
+    </div>
+  );
+}
+
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Welcome from './pages/Welcome';
 import Menu from './pages/Menu';
